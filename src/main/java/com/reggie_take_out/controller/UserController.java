@@ -8,6 +8,8 @@ import com.reggie_take_out.utils.SMSUtils;
 import com.reggie_take_out.utils.ValidateCodeUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpSession;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @RestController
@@ -24,6 +27,9 @@ public class UserController {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private RedisTemplate redisTemplate;
+
     @PostMapping("/sendMsg")
     public R<String> sendMsg(@RequestBody User user, HttpSession session){
         String phone = user.getPhone();
@@ -31,7 +37,9 @@ public class UserController {
             String code = ValidateCodeUtils.generateValidateCode(4).toString();
             log.info(code);
             //SMSUtils.sendMessage("阿里云短信测试","SMS_154950909",phone,code);
-            session.setAttribute(phone,code);
+            //session.setAttribute(phone,code);
+            ValueOperations valueOperations = redisTemplate.opsForValue();
+            valueOperations.set(phone,code,300, TimeUnit.SECONDS);
             return R.success("手机验证码发送成功");
         }
         return R.error("发送失败");
@@ -42,7 +50,10 @@ public class UserController {
         String phone = (String) map.get("phone");
         String code = (String) map.get("code");
         String sessioncode = (String) session.getAttribute(phone);
-        if (sessioncode!=null && code.equals(sessioncode)){
+        ValueOperations valueOperations = redisTemplate.opsForValue();
+        String getcode = (String) valueOperations.get(phone);
+//        if (sessioncode!=null && code.equals(sessioncode)){
+        if (getcode!=null && getcode.equals(code)){
             LambdaQueryWrapper<User> userLambdaQueryWrapper = new LambdaQueryWrapper<>();
             userLambdaQueryWrapper.eq(User::getPhone,phone);
             User user = userService.getOne(userLambdaQueryWrapper);
@@ -56,6 +67,7 @@ public class UserController {
                 userService.save(user);
             }
             session.setAttribute("user",user.getId());
+            redisTemplate.delete(phone);
             return R.success(user);
 
         }
