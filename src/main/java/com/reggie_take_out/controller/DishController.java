@@ -122,11 +122,31 @@ public class DishController {
 
     @GetMapping("/list")
     public R<List<DishDto>> list(Dish dish){
-        String key = "dish_" + dish.getCategoryId() + "_" + dish.getStatus().toString();
         List<DishDto> dtolist = null;
-        ValueOperations valueOperations = redisTemplate.opsForValue();
-        if (redisTemplate.hasKey(key)){
-            dtolist = (List<DishDto>) valueOperations.get(key);
+        if (dish.getStatus()!=null) {
+            String key = "dish_" + dish.getCategoryId() + "_" + dish.getStatus().toString();
+            ValueOperations valueOperations = redisTemplate.opsForValue();
+            if (redisTemplate.hasKey(key)) {
+                dtolist = (List<DishDto>) valueOperations.get(key);
+            } else {
+                LambdaQueryWrapper<Dish> queryWrapper = new LambdaQueryWrapper<>();
+                queryWrapper.eq(dish.getCategoryId() != null, Dish::getCategoryId, dish.getCategoryId());
+                queryWrapper.eq(Dish::getStatus, 1);
+                queryWrapper.orderByAsc(Dish::getSort).orderByDesc(Dish::getUpdateTime);
+                List<Dish> list = dishService.list(queryWrapper);
+                dtolist = list.stream().map((item) -> {
+                    DishDto dishDto = new DishDto();
+                    BeanUtils.copyProperties(item, dishDto);
+                    Long id = item.getId();
+                    LambdaQueryWrapper<DishFlavor> dishFlavorLambdaQueryWrapper = new LambdaQueryWrapper<>();
+                    dishFlavorLambdaQueryWrapper.eq(DishFlavor::getDishId, id);
+                    List<DishFlavor> list1 = dishFlaverService.list(dishFlavorLambdaQueryWrapper);
+                    dishDto.setFlavors(list1);
+
+                    return dishDto;
+                }).collect(Collectors.toList());
+                valueOperations.set(key, dtolist, 60, TimeUnit.MINUTES);
+            }
         }
         else {
             LambdaQueryWrapper<Dish> queryWrapper = new LambdaQueryWrapper<>();
@@ -145,7 +165,6 @@ public class DishController {
 
                 return dishDto;
             }).collect(Collectors.toList());
-            valueOperations.set(key, dtolist,60 , TimeUnit.MINUTES);
         }
 
         return R.success(dtolist);

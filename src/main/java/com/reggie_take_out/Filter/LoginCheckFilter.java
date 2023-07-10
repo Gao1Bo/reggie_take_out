@@ -3,7 +3,6 @@ package com.reggie_take_out.Filter;
 import com.alibaba.fastjson.JSON;
 import com.reggie_take_out.common.BaseContext;
 import com.reggie_take_out.common.R;
-import com.sun.webkit.network.URLs;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.AntPathMatcher;
 
@@ -31,7 +30,11 @@ public class LoginCheckFilter implements Filter {
                 "/backend/**",
                 "/front/**",
                 "/user/sendMsg",
-                "/user/login"
+                "/user/login",
+                "/doc.html",
+                "/webjars/**",
+                "/swagger-resources",
+                "/v2/api-docs"
         };
         //不需要处理放行
         if (check(requestURI,Urls)){
